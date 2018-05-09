@@ -3,6 +3,7 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::fs::File;
 use std::iter;
+use std::collections::HashMap;
 
 use glium::glutin;
 use glium::glutin::WindowBuilder;
@@ -72,6 +73,7 @@ impl Board {
 pub struct Insight {
     board: Board,
     graphics: Graphics,
+    palette: HashMap<char, Vector4<f32>>,
     events_loop: EventsLoop,
     display: Display,
     reader: BufReader<File>,
@@ -85,13 +87,32 @@ impl Insight {
         let file = File::open(file_name).unwrap();
         let mut reader = BufReader::new(file);
         let mut line_buffer = String::new();
+
+        // read board size
         let board;
         {
             reader.read_line(&mut line_buffer).unwrap();
-            let words: Vec<_> = line_buffer.split(" ").collect();
+            let words: Vec<_> = line_buffer.split_whitespace().collect();
             let num_rows = words[0].parse::<u32>().unwrap();
             let num_cols = words[1].parse::<u32>().unwrap();
             board = Board::new(num_rows, num_cols);
+        }
+
+        // read palette
+        let mut palette = HashMap::new();
+        loop {
+            line_buffer.clear();
+            reader.read_line(&mut line_buffer).unwrap();
+            if line_buffer.trim() == "-" {
+                break;
+            }
+            let words: Vec<_> = line_buffer.split_whitespace().collect();
+            let character = words[0].chars().next().unwrap();
+            let red   = words[1].parse::<f32>().unwrap();
+            let green = words[2].parse::<f32>().unwrap();
+            let blue  = words[3].parse::<f32>().unwrap();
+            let alpha = words[4].parse::<f32>().unwrap();
+            palette.insert(character, Vector4::new(red, green, blue, alpha));
         }
 
         let events_loop = EventsLoop::new();
@@ -105,6 +126,7 @@ impl Insight {
         Insight {
             board,
             graphics: Graphics::new(&display),
+            palette,
             events_loop,
             display,
             reader,
@@ -116,19 +138,30 @@ impl Insight {
     pub fn run(&mut self) {
         while !self.closing {
             self.handle_events();
-            for r in 0..self.board.num_rows() {
-                for c in 0..self.board.num_cols() {
-                    self.board.get_mut(r, c).color = Vector4::new(
-                        r as f32 / self.board.num_rows() as f32,
-                        1.0 - (c as f32 / self.board.num_cols() as f32),
-                        (r + c) as f32 / (self.board.num_rows() + self.board.num_cols()) as f32,
-                        1.0,
-                    );
-                }
-            }
+            self.read_turn();
             self.graphics.redraw(&self.board, &self.display);
-            /*self.line_buffer.clear();
-            self.reader.read_line(&mut self.line_buffer).unwrap();*/
+        }
+    }
+
+    fn read_turn(&mut self) {
+        for r in 0..self.board.num_rows() {
+            self.line_buffer.clear();
+            self.reader.read_line(&mut self.line_buffer).unwrap();
+            for (c, s) in self.line_buffer.split_whitespace().enumerate() {
+                let character = s.chars().next().unwrap();
+                match self.palette.get(&character) {
+                    Some(&color) => self.board.get_mut(r, c as u32).color = color,
+                    None => panic!("Unknown symbol: {}", character),
+                };
+            }
+        }
+        loop {
+            self.line_buffer.clear();
+            self.reader.read_line(&mut self.line_buffer).unwrap();
+            if self.line_buffer.is_empty() || self.line_buffer.trim() == "-" {
+                break;
+            }
+            // TODO
         }
     }
 
