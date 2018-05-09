@@ -98,8 +98,10 @@ impl Graphics {
             let y = board.num_rows() - r - 1;
             for c in 0..board.num_cols() {
                 let x = c;
-                let field = board.get(r, c);
-                self.draw_square(x, y, field.color, &mut frame);
+                for l in 0..board.num_layers() {
+                    let field = board.get(r, c, l);
+                    self.draw_square(x, y, field.color, &mut frame);
+                }
             }
         }
 

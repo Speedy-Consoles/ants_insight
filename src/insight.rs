@@ -1,4 +1,3 @@
-use std::env;
 use std::io::BufReader;
 use std::io::BufRead;
 use std::fs::File;
@@ -16,17 +15,23 @@ use cgmath::Vector4;
 
 use graphics::Graphics;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
+pub enum Shape {
+    Square,
+    Circle,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Field {
+    pub shape: Shape,
     pub color: Vector4<f32>,
-    pub circle_color: Vector4<f32>,
 }
 
 impl Default for Field {
     fn default() -> Field {
         Field {
+            shape: Shape::Square,
             color: Vector4::new(0.0, 0.0, 0.0, 1.0),
-            circle_color: Vector4::new(0.0, 0.0, 0.0, 0.0),
         }
     }
 }
@@ -35,26 +40,24 @@ pub struct Board {
     fields: Vec<Field>,
     num_rows: u32,
     num_cols: u32,
+    num_layers: u32,
 }
 
 impl Board {
-    fn new(num_rows: u32, num_cols: u32) -> Board {
-        let n = (num_rows * num_cols) as usize;
+    fn new(num_rows: u32, num_cols: u32, num_layers: u32) -> Board {
+        let n = (num_rows * num_cols * num_layers) as usize;
         Board {
             fields: iter::repeat(Default::default()).take(n).collect(),
             num_rows,
             num_cols,
+            num_layers,
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         for field in self.fields.iter_mut() {
             *field = Default::default();
         }
-    }
-
-    fn get_mut(&mut self, row: u32, col: u32) -> &mut Field {
-        &mut self.fields[(row * self.num_cols + col) as usize]
     }
 
     pub fn num_rows(&self) -> u32 {
@@ -65,8 +68,28 @@ impl Board {
         self.num_cols
     }
 
-    pub fn get(&self, row: u32, col: u32) -> &Field {
-        &self.fields[(row * self.num_cols + col) as usize]
+    pub fn num_layers(&self) -> u32 {
+        self.num_layers
+    }
+
+    pub fn get(&self, row: u32, col: u32, layer: u32) -> &Field {
+        &self.fields[self.get_index(row, col, layer)]
+    }
+
+    pub fn get_mut(&mut self, row: u32, col: u32, layer: u32) -> &mut Field {
+        let index = self.get_index(row, col, layer);
+        &mut self.fields[index]
+    }
+
+    fn get_index(&self, row: u32, col: u32, layer: u32) -> usize {
+        if row >= self.num_rows {
+            panic!("Row index out of bounds!");
+        } else if col >= self.num_cols {
+            panic!("Column index out of bounds!");
+        } else if layer >= self.num_layers {
+            panic!("Layer index out of bounds!");
+        }
+        ((row * self.num_cols + col) * self.num_layers + layer) as usize
     }
 }
 
@@ -82,20 +105,20 @@ pub struct Insight {
 }
 
 impl Insight {
-    pub fn new() -> Insight {
-        let file_name = env::args().nth(1).unwrap();
+    pub fn open(file_name: &str) -> Insight {
         let file = File::open(file_name).unwrap();
         let mut reader = BufReader::new(file);
         let mut line_buffer = String::new();
 
         // read board size
-        let board;
+        let mut board;
         {
             reader.read_line(&mut line_buffer).unwrap();
             let words: Vec<_> = line_buffer.split_whitespace().collect();
             let num_rows = words[0].parse::<u32>().unwrap();
             let num_cols = words[1].parse::<u32>().unwrap();
-            board = Board::new(num_rows, num_cols);
+            let num_layers = words[2].parse::<u32>().unwrap();
+            board = Board::new(num_rows, num_cols, num_layers);
         }
 
         // read palette
@@ -103,16 +126,53 @@ impl Insight {
         loop {
             line_buffer.clear();
             reader.read_line(&mut line_buffer).unwrap();
-            if line_buffer.trim() == "-" {
-                break;
+            let mut words = line_buffer.split_whitespace();
+            match words.next().unwrap() {
+                "turn" => break,
+                word => {
+                    let character = word.chars().nth(0).unwrap();
+                    let red   = words.next().unwrap().parse::<f32>().unwrap();
+                    let green = words.next().unwrap().parse::<f32>().unwrap();
+                    let blue  = words.next().unwrap().parse::<f32>().unwrap();
+                    let alpha = words.next().unwrap().parse::<f32>().unwrap();
+                    palette.insert(character, Vector4::new(red, green, blue, alpha));
+                }
             }
-            let words: Vec<_> = line_buffer.split_whitespace().collect();
-            let character = words[0].chars().next().unwrap();
-            let red   = words[1].parse::<f32>().unwrap();
-            let green = words[2].parse::<f32>().unwrap();
-            let blue  = words[3].parse::<f32>().unwrap();
-            let alpha = words[4].parse::<f32>().unwrap();
-            palette.insert(character, Vector4::new(red, green, blue, alpha));
+        }
+
+        let mut end = false;
+        while !end {
+            for r in 0..board.num_rows() {
+                line_buffer.clear();
+                reader.read_line(&mut line_buffer).unwrap();
+                let mut words = line_buffer.split_whitespace();
+                for c in 0..board.num_cols() {
+                    let mut word = words.next().unwrap().chars();
+                    for l in 0..board.num_layers() {
+                        let symbol = word.next().unwrap();
+                        match palette.get(&symbol) {
+                            Some(&color) => board.get_mut(r, c, l as u32).color = color,
+                            None => panic!("Unknown symbol: {}", symbol),
+                        };
+                    }
+                }
+            }
+            loop {
+                line_buffer.clear();
+                reader.read_line(&mut line_buffer).unwrap();
+                let mut words = line_buffer.split_whitespace();
+                let keyword = words.next().unwrap();
+                match keyword {
+                    "end" => {
+                        end = true;
+                        break;
+                    },
+                    "turn" => break,
+                    _ => {
+                        // TODO
+                    },
+                }
+            }
         }
 
         let events_loop = EventsLoop::new();
@@ -136,32 +196,11 @@ impl Insight {
     }
 
     pub fn run(&mut self) {
+        println!("{:?}", self.board.get(20, 0, 0));
         while !self.closing {
             self.handle_events();
-            self.read_turn();
-            self.graphics.redraw(&self.board, &self.display);
-        }
-    }
-
-    fn read_turn(&mut self) {
-        for r in 0..self.board.num_rows() {
-            self.line_buffer.clear();
-            self.reader.read_line(&mut self.line_buffer).unwrap();
-            for (c, s) in self.line_buffer.split_whitespace().enumerate() {
-                let character = s.chars().next().unwrap();
-                match self.palette.get(&character) {
-                    Some(&color) => self.board.get_mut(r, c as u32).color = color,
-                    None => panic!("Unknown symbol: {}", character),
-                };
-            }
-        }
-        loop {
-            self.line_buffer.clear();
-            self.reader.read_line(&mut self.line_buffer).unwrap();
-            if self.line_buffer.is_empty() || self.line_buffer.trim() == "-" {
-                break;
-            }
             // TODO
+            self.graphics.redraw(&self.board, &self.display);
         }
     }
 
