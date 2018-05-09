@@ -3,6 +3,7 @@ extern crate cgmath;
 
 mod insight;
 mod graphics;
+mod board;
 
 use insight::Insight;
 use std::env;

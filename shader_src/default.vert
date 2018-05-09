@@ -1,9 +1,12 @@
 #version 400
 
-uniform mat4 trafo_matrix;
+in vec2 position;
+in vec4 color;
 
-in vec3 position;
+out vec2 vg_position;
+out vec4 vg_color;
 
 void main() {
-    gl_Position = trafo_matrix * vec4(position, 1.0);
+    vg_position = position;
+    vg_color = color;
 }
