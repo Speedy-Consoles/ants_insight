@@ -26,7 +26,7 @@ impl Insight {
             .with_vsync(false);
         let display = Display::new(window, context, &events_loop).unwrap();
 
-        let board = Board::open(file_name);
+        let board = Board::load(file_name);
         let graphics = Graphics::new(board.num_rows(), board.num_cols(), &display);
         Insight {
             board,

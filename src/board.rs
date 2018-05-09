@@ -4,6 +4,7 @@ use std::fs::File;
 use std::slice;
 use std::collections::HashMap;
 
+use cgmath::Vector3;
 use cgmath::Vector4;
 
 #[derive(Clone, Copy, Debug)]
@@ -20,31 +21,34 @@ struct Index {
 struct PaletteEntry {
     shape: Shape,
     color: Vector4<f32>,
+    layer: u8,
 }
 
-pub struct Object {
+pub struct Tile {
     pub row: u32,
     pub col: u32,
+    pub layer: u8,
     pub shape: Shape,
     pub color: Vector4<f32>,
 }
 
-pub struct ObjectIterator<'a> {
+pub struct TileIterator<'a> {
     inner: slice::Iter<'a, Index>,
     palette: &'a Vec<PaletteEntry>,
     num_cols: u32,
 }
 
-impl<'a> Iterator for ObjectIterator<'a> {
-    type Item = Object;
-    fn next(&mut self) -> Option<Object> {
+impl<'a> Iterator for TileIterator<'a> {
+    type Item = Tile;
+    fn next(&mut self) -> Option<Tile> {
         self.inner.next().map(|index| {
             let palette_entry = &self.palette[index.palette_index];
-            Object {
+            Tile {
                 row: index.position_index as u32 / self.num_cols,
                 col: index.position_index as u32 % self.num_cols,
                 shape: palette_entry.shape,
                 color: palette_entry.color,
+                layer: palette_entry.layer,
             }
         })
     }
@@ -55,10 +59,11 @@ pub struct Board {
     num_cols: u32,
     palette: Vec<PaletteEntry>,
     data: Vec<Vec<Index>>,
+    background_color: Vector3<f32>,
 }
 
 impl Board {
-    pub fn open(file_name: &str) -> Board {
+    pub fn load(file_name: &str) -> Board {
         let file = File::open(file_name).unwrap();
         let mut reader = BufReader::new(file);
         let mut line_buffer = String::new();
@@ -67,10 +72,23 @@ impl Board {
         let num_rows;
         let num_cols;
         {
+            line_buffer.clear();
             reader.read_line(&mut line_buffer).unwrap();
-            let words: Vec<_> = line_buffer.split_whitespace().collect();
-            num_rows = words[0].parse::<u32>().unwrap();
-            num_cols = words[1].parse::<u32>().unwrap();
+            let mut words = line_buffer.split_whitespace();
+            num_rows = words.next().unwrap().parse::<u32>().unwrap();
+            num_cols = words.next().unwrap().parse::<u32>().unwrap();
+        }
+
+        // read background color
+        let background_color;
+        {
+            line_buffer.clear();
+            reader.read_line(&mut line_buffer).unwrap();
+            let mut words = line_buffer.split_whitespace();
+            let red   = words.next().unwrap().parse::<f32>().unwrap();
+            let green = words.next().unwrap().parse::<f32>().unwrap();
+            let blue  = words.next().unwrap().parse::<f32>().unwrap();
+            background_color = Vector3::new(red, green, blue);
         }
 
         // read palette
@@ -88,10 +106,12 @@ impl Board {
                     let green = words.next().unwrap().parse::<f32>().unwrap();
                     let blue  = words.next().unwrap().parse::<f32>().unwrap();
                     let alpha = words.next().unwrap().parse::<f32>().unwrap();
+                    let layer = words.next().unwrap().parse::<u8>().unwrap();
                     palette_map.insert(character, palette.len());
                     palette.push(PaletteEntry {
                         shape: Shape::Square,
                         color: Vector4::new(red, green, blue, alpha),
+                        layer,
                     });
                 }
             }
@@ -109,6 +129,9 @@ impl Board {
                 let mut words = line_buffer.split_whitespace();
                 for c in 0..num_cols {
                     for symbol in words.next().unwrap().chars() {
+                        if symbol == '.' {
+                            continue;
+                        }
                         match palette_map.get(&symbol) {
                             Some(&pi) => turn_fields.push(Index {
                                 position_index: (r * num_cols + c) as usize,
@@ -142,6 +165,7 @@ impl Board {
             palette,
             num_rows,
             num_cols,
+            background_color,
         }
     }
 
@@ -157,8 +181,12 @@ impl Board {
         self.num_cols
     }
 
-    pub fn objects(&self, turn: u32) -> ObjectIterator {
-        ObjectIterator {
+    pub fn background_color(&self) -> Vector3<f32> {
+        self.background_color
+    }
+
+    pub fn tiles(&self, turn: u32) -> TileIterator {
+        TileIterator {
             inner: self.data[turn as usize].iter(),
             palette: &self.palette,
             num_cols: self.num_cols,
