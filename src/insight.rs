@@ -1,3 +1,7 @@
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
+
 use glium::glutin;
 use glium::glutin::WindowBuilder;
 use glium::glutin::ContextBuilder;
@@ -10,12 +14,16 @@ use graphics::Graphics;
 use game_data::GameData;
 
 pub struct Insight {
-    board: GameData,
+    game_data: GameData,
     graphics: Graphics,
     events_loop: EventsLoop,
     display: Display,
     turn: u32,
     closing: bool,
+    need_redraw: bool,
+    last_frame: Instant,
+    playing: bool,
+    play_speed: f64,
 }
 
 impl Insight {
@@ -31,20 +39,36 @@ impl Insight {
         let board = GameData::load(file_name);
         let graphics = Graphics::new(board.num_rows(), board.num_cols(), &display);
         Insight {
-            board,
+            game_data: board,
             graphics,
             events_loop,
             display,
             turn: 0,
             closing: false,
+            need_redraw: true,
+            last_frame: Instant::now(),
+            playing: true,
+            play_speed: 1.0,
         }
     }
 
     pub fn run(&mut self) {
         while !self.closing {
             self.handle_events();
+            let play_interval = Duration::new(0, ((1.0 / (2.0 * self.play_speed)) * 1e9) as u32);
+            if self.playing && self.last_frame.elapsed() >= play_interval {
+                if self.turn < self.game_data.num_turns() - 1 {
+                    self.turn += 1;
+                    self.need_redraw = true;
+                }
+            }
             // TODO
-            self.graphics.draw_turn(&self.board, self.turn, &self.display);
+            if self.need_redraw {
+                self.last_frame = Instant::now();
+                self.graphics.draw_turn(&self.game_data, self.turn, &self.display);
+                self.need_redraw = false;
+            }
+            thread::sleep(Duration::new(0, 16000000));
         }
     }
 
@@ -55,11 +79,17 @@ impl Insight {
         let closing = &mut self.closing;
         let graphics = &mut self.graphics;
         let turn = &mut self.turn;
-        let num_turns = self.board.num_turns();
+        let num_turns = self.game_data.num_turns();
+        let need_redraw = &mut self.need_redraw;
+        let playing = &mut self.playing;
+        let play_speed = &mut self.play_speed;
         self.events_loop.poll_events(|ev| {
             match ev {
                 WindowEvent { event: wev, .. } => match wev {
-                    WE::Resized(width, height) => graphics.set_view_port(width, height),
+                    WE::Resized(width, height) => {
+                        graphics.set_view_port(width, height);
+                        *need_redraw = true;
+                    },
                     WE::Closed => *closing = true,
                     WE::KeyboardInput { input, .. } => {
                         if let ElementState::Pressed = input.state {
@@ -68,20 +98,37 @@ impl Insight {
                                     *closing = true
                                 },
                                 Some(VirtualKeyCode::Right) => {
-                                    *turn += 1;
-                                    if *turn >= num_turns {
-                                        *turn = num_turns - 1;
+                                    *playing = false;
+                                    if *turn < num_turns - 1 {
+                                        *turn += 1;
+                                        *need_redraw = true;
                                     }
                                 },
                                 Some(VirtualKeyCode::Left) => {
+                                    *playing = false;
                                     if *turn > 0 {
                                         *turn -= 1;
+                                        *need_redraw = true;
                                     }
+                                },
+                                Some(VirtualKeyCode::Down) => {
+                                    if *play_speed > 0.2 {
+                                        *play_speed -= 0.2;
+                                    }
+                                },
+                                Some(VirtualKeyCode::Up) => {
+                                    if *play_speed < 50.0 {
+                                        *play_speed += 0.2;
+                                    }
+                                },
+                                Some(VirtualKeyCode::Space) => {
+                                    *playing = !*playing;
                                 },
                                 _ => (),
                             }
                         }
                     },
+                    WE::Focused(true) => *need_redraw = true,
                     _ => (),
                 },
                 _ => (),

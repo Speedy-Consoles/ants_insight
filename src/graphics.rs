@@ -95,10 +95,10 @@ impl Graphics {
         }
     }
 
-    pub fn draw_turn(&mut self, board: &GameData, turn: u32, display: &Display) {
-        let board_width = board.num_cols() as f32;
-        let board_height = board.num_rows() as f32;
-        let board_ratio = if board.num_rows() != 0 {
+    pub fn draw_turn(&mut self, game_data: &GameData, turn: u32, display: &Display) {
+        let board_width = game_data.num_cols() as f32;
+        let board_height = game_data.num_rows() as f32;
+        let board_ratio = if game_data.num_rows() != 0 {
             board_width / board_height
         } else {
             0.0
@@ -135,8 +135,8 @@ impl Graphics {
         let mut frame = display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        let num_rows = board.num_rows();
-        for tile in board.tiles(turn) {
+        let num_rows = game_data.num_rows();
+        for tile in game_data.tiles(turn) {
             let x = tile.col as f32;
             let y = (num_rows - tile.row - 1) as f32;
             let z = 1.0 - tile.layer as f32 / 100.0;
@@ -157,7 +157,7 @@ impl Graphics {
             trafo_matrix: transformation_matrix_uniform,
         };
 
-        let background_color_uniform: [f32; 3] = board.background_color().into();
+        let background_color_uniform: [f32; 3] = game_data.background_color().into();
         let background_uniforms = uniform! {
             trafo_matrix: transformation_matrix_uniform,
             background_color: background_color_uniform,
