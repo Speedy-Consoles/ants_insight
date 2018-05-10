@@ -42,6 +42,7 @@ pub struct Graphics {
     width: u32,
     height: u32,
     transformation_matrix: Matrix4<f32>,
+    layer_switches: [bool; 10],
 }
 
 impl Graphics {
@@ -92,6 +93,7 @@ impl Graphics {
             width: 0,
             height: 0,
             transformation_matrix: Matrix4::identity(),
+            layer_switches: [true; 10],
         }
     }
 
@@ -137,6 +139,9 @@ impl Graphics {
 
         let num_rows = game_data.num_rows();
         for tile in game_data.tiles(turn) {
+            if !self.layer_switches[tile.layer as usize] {
+                continue;
+            }
             let x = tile.col as f32;
             let y = (num_rows - tile.row - 1) as f32;
             let z = 1.0 - tile.layer as f32 / 100.0;
@@ -186,6 +191,10 @@ impl Graphics {
         ).unwrap();
 
         frame.finish().unwrap();
+    }
+
+    pub fn toggle_layer(&mut self, layer: u32) {
+        self.layer_switches[layer as usize] ^= true;
     }
 
     pub fn set_view_port(&mut self, width: u32, height: u32) {

@@ -111,6 +111,7 @@ impl GameData {
                     let blue  = words.next().unwrap().parse::<f32>().unwrap();
                     let alpha = words.next().unwrap().parse::<f32>().unwrap();
                     let layer = words.next().unwrap().parse::<u8>().unwrap();
+                    assert!(layer < 10);
                     palette_map.insert(character, palette.len());
                     palette.push(PaletteEntry {
                         shape,

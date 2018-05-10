@@ -60,11 +60,11 @@ impl Insight {
                 if self.turn < self.game_data.num_turns() - 1 {
                     self.turn += 1;
                     self.need_redraw = true;
+                    self.last_frame = Instant::now();
                 }
             }
             // TODO
             if self.need_redraw {
-                self.last_frame = Instant::now();
                 self.graphics.draw_turn(&self.game_data, self.turn, &self.display);
                 self.need_redraw = false;
             }
@@ -123,6 +123,46 @@ impl Insight {
                                 },
                                 Some(VirtualKeyCode::Space) => {
                                     *playing = !*playing;
+                                },
+                                Some(VirtualKeyCode::Key0) => {
+                                    graphics.toggle_layer(9);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key1) => {
+                                    graphics.toggle_layer(0);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key2) => {
+                                    graphics.toggle_layer(1);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key3) => {
+                                    graphics.toggle_layer(2);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key4) => {
+                                    graphics.toggle_layer(3);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key5) => {
+                                    graphics.toggle_layer(4);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key6) => {
+                                    graphics.toggle_layer(5);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key7) => {
+                                    graphics.toggle_layer(6);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key8) => {
+                                    graphics.toggle_layer(7);
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::Key9) => {
+                                    graphics.toggle_layer(8);
+                                    *need_redraw = true;
                                 },
                                 _ => (),
                             }
