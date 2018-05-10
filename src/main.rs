@@ -3,7 +3,7 @@ extern crate cgmath;
 
 mod insight;
 mod graphics;
-mod board;
+mod game_data;
 
 use insight::Insight;
 use std::env;

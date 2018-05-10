@@ -54,7 +54,7 @@ impl<'a> Iterator for TileIterator<'a> {
     }
 }
 
-pub struct Board {
+pub struct GameData {
     num_rows: u32,
     num_cols: u32,
     palette: Vec<PaletteEntry>,
@@ -62,8 +62,8 @@ pub struct Board {
     background_color: Vector3<f32>,
 }
 
-impl Board {
-    pub fn load(file_name: &str) -> Board {
+impl GameData {
+    pub fn load(file_name: &str) -> GameData {
         let file = File::open(file_name).unwrap();
         let mut reader = BufReader::new(file);
         let mut line_buffer = String::new();
@@ -102,6 +102,10 @@ impl Board {
                 "turn" => break,
                 word => {
                     let character = word.chars().nth(0).unwrap();
+                    let shape = match words.next().unwrap().chars().nth(0).unwrap() {
+                        'c' => Shape::Circle,
+                        _ => Shape::Square,
+                    };
                     let red   = words.next().unwrap().parse::<f32>().unwrap();
                     let green = words.next().unwrap().parse::<f32>().unwrap();
                     let blue  = words.next().unwrap().parse::<f32>().unwrap();
@@ -109,7 +113,7 @@ impl Board {
                     let layer = words.next().unwrap().parse::<u8>().unwrap();
                     palette_map.insert(character, palette.len());
                     palette.push(PaletteEntry {
-                        shape: Shape::Square,
+                        shape,
                         color: Vector4::new(red, green, blue, alpha),
                         layer,
                     });
@@ -126,6 +130,9 @@ impl Board {
             for r in 0..num_rows {
                 line_buffer.clear();
                 reader.read_line(&mut line_buffer).unwrap();
+                if line_buffer.is_empty() {
+                    break;
+                }
                 let mut words = line_buffer.split_whitespace();
                 for c in 0..num_cols {
                     for symbol in words.next().unwrap().chars() {
@@ -145,6 +152,10 @@ impl Board {
             loop {
                 line_buffer.clear();
                 reader.read_line(&mut line_buffer).unwrap();
+                if line_buffer.is_empty() {
+                    end = true;
+                    break;
+                }
                 let mut words = line_buffer.split_whitespace();
                 let keyword = words.next().unwrap();
                 match keyword {
@@ -160,7 +171,7 @@ impl Board {
             }
             turn += 1;
         }
-        Board {
+        GameData {
             data,
             palette,
             num_rows,

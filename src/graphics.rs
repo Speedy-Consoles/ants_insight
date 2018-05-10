@@ -9,24 +9,28 @@ use glium::backend::glutin::Display;
 use glium::index::PrimitiveType;
 use glium::Surface;
 use glium::program::Program;
+use glium::DrawParameters;
+use glium::Blend;
 
-use cgmath::Matrix3;
+use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 
-use board::Board;
+use game_data::GameData;
+use game_data::Shape;
 
 #[derive(Copy, Clone)]
 struct MyTile {
-    position: [f32; 2],
+    position: [f32; 3],
     color: [f32; 4],
+    radius2: f32,
 }
 
 #[derive(Copy, Clone)]
 struct MyVertex {
-    position: [f32; 2],
+    position: [f32; 3],
 }
 
-implement_vertex!(MyTile, position, color);
+implement_vertex!(MyTile, position, color, radius2);
 implement_vertex!(MyVertex, position);
 
 pub struct Graphics {
@@ -37,7 +41,7 @@ pub struct Graphics {
     background_program: Program,
     width: u32,
     height: u32,
-    transformation_matrix: Matrix3<f32>,
+    transformation_matrix: Matrix4<f32>,
 }
 
 impl Graphics {
@@ -65,10 +69,10 @@ impl Graphics {
         let height = num_rows as f32;
         let width = num_cols as f32;
         let background_vertex_data = [
-            MyVertex { position: [0.0,   0.0   ] },
-            MyVertex { position: [width, 0.0   ] },
-            MyVertex { position: [width, height] },
-            MyVertex { position: [0.0,   height] },
+            MyVertex { position: [0.0,   0.0,    0.0] },
+            MyVertex { position: [width, 0.0,    0.0] },
+            MyVertex { position: [width, height, 0.0] },
+            MyVertex { position: [0.0,   height, 0.0] },
         ];
         let background_vertex_buffer = VertexBuffer::new(display, &background_vertex_data).unwrap();
 
@@ -87,11 +91,11 @@ impl Graphics {
             background_program,
             width: 0,
             height: 0,
-            transformation_matrix: Matrix3::identity(),
+            transformation_matrix: Matrix4::identity(),
         }
     }
 
-    pub fn draw_turn(&mut self, board: &Board, turn: u32, display: &Display) {
+    pub fn draw_turn(&mut self, board: &GameData, turn: u32, display: &Display) {
         let board_width = board.num_cols() as f32;
         let board_height = board.num_rows() as f32;
         let board_ratio = if board.num_rows() != 0 {
@@ -119,10 +123,11 @@ impl Graphics {
             x_offset = -1.0;
             y_offset = -screen_ratio / board_ratio;
         }
-        self.transformation_matrix = Matrix3::new(
-            x_scaling,  0.0,       0.0,
-            0.0,        y_scaling, 0.0,
-            x_offset,   y_offset,  1.0f32,
+        self.transformation_matrix = Matrix4::new(
+            x_scaling,  0.0,       0.0, 0.0,
+            0.0,        y_scaling, 0.0, 0.0,
+            0.0,        0.0,       1.0, 0.0,
+            x_offset,   y_offset,  0.0, 1.0f32,
         );
 
         self.vertex_data.clear();
@@ -131,17 +136,23 @@ impl Graphics {
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
 
         let num_rows = board.num_rows();
-        for object in board.tiles(turn) {
-            let x = object.col as f32;
-            let y = (num_rows - object.row - 1) as f32;
+        for tile in board.tiles(turn) {
+            let x = tile.col as f32;
+            let y = (num_rows - tile.row - 1) as f32;
+            let z = 1.0 - tile.layer as f32 / 100.0;
+            let radius2 = match tile.shape {
+                Shape::Square => 1.0,
+                Shape::Circle => 0.25,
+            };
             self.vertex_data.push(MyTile {
-                position: [x, y],
-                color: object.color.into(),
+                position: [x, y, z],
+                color: tile.color.into(),
+                radius2,
             });
         }
         let vertex_buffer = VertexBuffer::new(display, &self.vertex_data).unwrap();
 
-        let transformation_matrix_uniform: [[f32; 3]; 3] = self.transformation_matrix.into();
+        let transformation_matrix_uniform: [[f32; 4]; 4] = self.transformation_matrix.into();
         let uniforms = uniform! {
             trafo_matrix: transformation_matrix_uniform,
         };
@@ -162,12 +173,16 @@ impl Graphics {
         ).unwrap();
 
         // draw tiles
+        let draw_parameters = DrawParameters {
+            blend: Blend::alpha_blending(),
+            ..Default::default()
+        };
         frame.draw(
             &vertex_buffer,
             &NoIndices(PrimitiveType::Points),
             &self.program,
             &uniforms,
-            &Default::default(),
+            &draw_parameters,
         ).unwrap();
 
         frame.finish().unwrap();
