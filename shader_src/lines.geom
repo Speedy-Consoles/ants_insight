@@ -14,9 +14,9 @@ out vec4 gf_color;
 void main() {
     gf_color = vg_color[0];
 
-    gl_Position = trafo_matrix * vec4(vg_start[0], 1.0);
+    gl_Position = trafo_matrix * vec4(vg_start[0] + vec3(0.5, 0.5, 0.0), 1.0);
     EmitVertex();
 
-    gl_Position = trafo_matrix * vec4(vg_end[0], 1.0);
+    gl_Position = trafo_matrix * vec4(vg_end[0] + vec3(0.5, 0.5, 0.0), 1.0);
     EmitVertex();
 }
