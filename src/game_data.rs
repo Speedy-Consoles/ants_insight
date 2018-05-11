@@ -32,6 +32,15 @@ pub struct Tile {
     pub color: Vector4<f32>,
 }
 
+pub struct Line {
+    pub r1: u32,
+    pub c1: u32,
+    pub r2: u32,
+    pub c2: u32,
+    pub color: Vector4<f32>,
+    pub layer: u8,
+}
+
 pub struct TileIterator<'a> {
     inner: slice::Iter<'a, Index>,
     palette: &'a Vec<PaletteEntry>,
@@ -58,7 +67,8 @@ pub struct GameData {
     num_rows: u32,
     num_cols: u32,
     palette: Vec<PaletteEntry>,
-    data: Vec<Vec<Index>>,
+    tiles: Vec<Vec<Index>>,
+    lines: Vec<Vec<Line>>,
     background_color: Vector3<f32>,
 }
 
@@ -122,12 +132,15 @@ impl GameData {
             }
         }
 
-        let mut data = Vec::new();
+        let mut tiles = Vec::new();
+        let mut lines = Vec::new();
         let mut end = false;
         let mut turn = 0;
         while !end {
-            data.push(Vec::new());
-            let turn_fields = &mut data[turn];
+            tiles.push(Vec::new());
+            lines.push(Vec::new());
+            let turn_fields = &mut tiles[turn];
+            let turn_lines = &mut lines[turn];
             for r in 0..num_rows {
                 line_buffer.clear();
                 reader.read_line(&mut line_buffer).unwrap();
@@ -165,15 +178,34 @@ impl GameData {
                         break;
                     },
                     "turn" => break,
-                    _ => {
-                        // TODO
+                    "line" => {
+                        let r1 = words.next().unwrap().parse::<u32>().unwrap();
+                        let c1 = words.next().unwrap().parse::<u32>().unwrap();
+                        let r2 = words.next().unwrap().parse::<u32>().unwrap();
+                        let c2 = words.next().unwrap().parse::<u32>().unwrap();
+                        let red   = words.next().unwrap().parse::<f32>().unwrap();
+                        let green = words.next().unwrap().parse::<f32>().unwrap();
+                        let blue  = words.next().unwrap().parse::<f32>().unwrap();
+                        let alpha = words.next().unwrap().parse::<f32>().unwrap();
+                        let layer = words.next().unwrap().parse::<u8>().unwrap();
+                        assert!(layer < 10);
+                        turn_lines.push(Line {
+                            r1,
+                            c1,
+                            r2,
+                            c2,
+                            color: Vector4::new(red, green, blue, alpha),
+                            layer
+                        });
                     },
+                    _ => (),
                 }
             }
             turn += 1;
         }
         GameData {
-            data,
+            tiles,
+            lines,
             palette,
             num_rows,
             num_cols,
@@ -182,7 +214,7 @@ impl GameData {
     }
 
     pub fn num_turns(&self) -> u32 {
-        self.data.len() as u32
+        self.tiles.len() as u32
     }
 
     pub fn num_rows(&self) -> u32 {
@@ -199,9 +231,13 @@ impl GameData {
 
     pub fn tiles(&self, turn: u32) -> TileIterator {
         TileIterator {
-            inner: self.data[turn as usize].iter(),
+            inner: self.tiles[turn as usize].iter(),
             palette: &self.palette,
             num_cols: self.num_cols,
         }
+    }
+
+    pub fn lines(&self, turn: u32) -> slice::Iter<Line> {
+        self.lines[turn as usize].iter()
     }
 }
