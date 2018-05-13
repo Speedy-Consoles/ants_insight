@@ -111,6 +111,16 @@ impl Insight {
                                         *need_redraw = true;
                                     }
                                 },
+                                Some(VirtualKeyCode::Home) => {
+                                    *playing = false;
+                                    *turn = 0;
+                                    *need_redraw = true;
+                                },
+                                Some(VirtualKeyCode::End) => {
+                                    *playing = false;
+                                    *turn = num_turns - 1;
+                                    *need_redraw = true;
+                                },
                                 Some(VirtualKeyCode::Down) => {
                                     if *play_speed > 0.2 {
                                         *play_speed -= 0.2;
